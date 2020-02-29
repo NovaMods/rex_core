@@ -12,6 +12,8 @@
 #include "rx/core/utility/uninitialized.h"
 
 #include "rx/core/hints/restrict.h"
+#include "rx/core/hints/unlikely.h"
+#include "rx/core/hints/unreachable.h"
 
 #include "rx/core/memory/system_allocator.h" // memory::{system_allocator, allocator}
 
@@ -81,6 +83,8 @@ struct vector {
   bool push_back(const T& _data);
   // append |data| by move
   bool push_back(T&& data_);
+
+  void pop_back();
 
   // append new |T| construct with |args|
   template<typename... Ts>
@@ -180,8 +184,9 @@ inline vector<T>::vector(memory::allocator* _allocator, rx_size _size, utility::
   , m_size{_size}
   , m_capacity{_size}
 {
-  RX_ASSERT(traits::is_trivially_copyable<T>,
+  static_assert(traits::is_trivially_copyable<T>,
     "T isn't trivial, cannot leave uninitialized");
+
   RX_ASSERT(m_allocator, "null allocator");
 
   m_data = reinterpret_cast<T*>(m_allocator->allocate(m_size * sizeof *m_data));
@@ -198,7 +203,6 @@ inline vector<T>::vector(memory::allocator* _allocator, rx_size _size)
   RX_ASSERT(m_allocator, "null allocator");
 
   m_data = reinterpret_cast<T*>(m_allocator->allocate(m_size * sizeof *m_data));
-
   RX_ASSERT(m_data, "out of memory");
 
   // TODO(dweiler): is_trivial trait so we can memset this.
@@ -266,6 +270,7 @@ inline vector<T>& vector<T>::operator=(const vector& _other) {
   m_allocator = _other.m_allocator;
   m_size = _other.m_size;
   m_capacity = _other.m_capacity;
+
   m_data = reinterpret_cast<T*>(m_allocator->allocate(_other.m_capacity * sizeof *m_data));
   RX_ASSERT(m_data, "out of memory");
 
@@ -318,13 +323,13 @@ inline vector<T>& vector<T>::operator+=(vector&& other_) {
 
 template<typename T>
 inline T& vector<T>::operator[](rx_size _index) {
-  RX_ASSERT(_index < m_size, "out of bounds (%zu >= %zu)", _index, m_size);
+  RX_ASSERT(m_data && _index < m_size, "out of bounds (%zu >= %zu)", _index, m_size);
   return m_data[_index];
 }
 
 template<typename T>
 inline const T& vector<T>::operator[](rx_size _index) const {
-  RX_ASSERT(_index < m_size, "out of bounds (%zu >= %zu)", _index, m_size);
+  RX_ASSERT(m_data && _index < m_size, "out of bounds (%zu >= %zu)", _index, m_size);
   return m_data[_index];
 }
 
@@ -383,38 +388,44 @@ bool vector<T>::reserve(rx_size _size) {
     return true;
   }
 
-  // golden ratio
+  // Always resize capacity with the Golden ratio.
   while (m_capacity < _size) {
     m_capacity = ((m_capacity + 1) * 3) / 2;
   }
 
   if constexpr (traits::is_trivially_copyable<T>) {
-    T* resize{reinterpret_cast<T*>(m_allocator->reallocate(reinterpret_cast<rx_byte*>(m_data), m_capacity * sizeof *m_data))};
-    if (resize) {
-      m_data = resize;
-      return true;
+    T* resize = reinterpret_cast<T*>(m_allocator->reallocate(reinterpret_cast<rx_byte*>(m_data), m_capacity * sizeof *m_data));
+    if (RX_HINT_UNLIKELY(!resize)) {
+      return false;
     }
+    m_data = resize;
+    return true;
   } else {
-    T* resize{reinterpret_cast<T*>(m_allocator->allocate(m_capacity * sizeof *m_data))};
-    if (resize) {
+    T* resize = reinterpret_cast<T*>(m_allocator->allocate(m_capacity * sizeof *m_data));
+    if (RX_HINT_UNLIKELY(!resize)) {
+      return false;
+    }
+
+    // Avoid the heavy indirect call through |m_allocator| for freeing nullptr.
+    if (m_data) {
       for (rx_size i{0}; i < m_size; i++) {
         utility::construct<T>(resize + i, utility::move(*(m_data + i)));
         utility::destruct<T>(m_data + i);
       }
-
       m_allocator->deallocate(reinterpret_cast<rx_byte*>(m_data));
-      m_data = resize;
-      return true;
     }
+    m_data = resize;
+    return true;
   }
 
-  return false;
+  RX_HINT_UNREACHABLE();
 }
 
 template<typename T>
 inline void vector<T>::clear() {
   if (m_size) {
     if constexpr (!traits::is_trivially_destructible<T>) {
+      RX_ASSERT(m_data, "m_data == nullptr when m_size != 0");
       for (rx_size i = m_size-1; i < m_size; i--) {
         utility::destruct<T>(m_data + i);
       }
@@ -468,6 +479,12 @@ inline bool vector<T>::push_back(T&& value_) {
 
   m_size++;
   return true;
+}
+
+template<typename T>
+inline void vector<T>::pop_back() {
+  RX_ASSERT(m_size, "empty vector");
+  grow_or_shrink_to(--m_size);
 }
 
 template<typename T>
@@ -582,21 +599,25 @@ inline bool vector<T>::each_rev(F&& _func) const {
 
 template<typename T>
 RX_HINT_FORCE_INLINE const T& vector<T>::first() const {
+  RX_ASSERT(m_data, "empty vector");
   return m_data[0];
 }
 
 template<typename T>
 RX_HINT_FORCE_INLINE T& vector<T>::first() {
+  RX_ASSERT(m_data, "empty vector");
   return m_data[0];
 }
 
 template<typename T>
 RX_HINT_FORCE_INLINE const T& vector<T>::last() const {
+  RX_ASSERT(m_data, "empty vector");
   return m_data[m_size - 1];
 }
 
 template<typename T>
 RX_HINT_FORCE_INLINE T& vector<T>::last() {
+  RX_ASSERT(m_data, "empty vector");
   return m_data[m_size - 1];
 }
 
