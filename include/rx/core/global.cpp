@@ -1,4 +1,5 @@
 #include <string.h> // strcmp
+#include <stdlib.h> // malloc, free
 
 #include "rx/core/global.h"
 #include "rx/core/log.h"
@@ -20,7 +21,9 @@ void global_node::init_global() {
 
   RX_ASSERT(!(m_flags & k_initialized), "already initialized");
   logger(log::level::k_verbose, "%p init: %s/%s", this, m_group, m_name);
-  m_init_global(data(), m_argument_store);
+
+  m_storage_dispatch(storage_mode::k_init_global, data(), m_argument_store);
+
   m_flags |= k_initialized;
 }
 
@@ -33,8 +36,9 @@ void global_node::fini_global() {
   logger(log::level::k_verbose, "%p fini: %s/%s", this, m_group, m_name);
 
   m_shared->finalizer(data());
-  if (m_fini_arguments) {
-    m_fini_arguments(m_argument_store);
+  if (m_flags & k_arguments) {
+    m_storage_dispatch(storage_mode::k_fini_arguments, data(), m_argument_store);
+    deallocate_arguments(m_argument_store);
   }
   m_flags &= ~k_initialized;
 }
@@ -42,7 +46,8 @@ void global_node::fini_global() {
 void global_node::init() {
   RX_ASSERT(!(m_flags & k_initialized), "already initialized");
 
-  m_init_global(data(), m_argument_store);
+  m_storage_dispatch(storage_mode::k_init_global, data(), m_argument_store);
+
   m_flags &= ~k_enabled;
   m_flags |= k_initialized;
 }
@@ -51,11 +56,20 @@ void global_node::fini() {
   RX_ASSERT(m_flags & k_initialized, "not initialized");
 
   m_shared->finalizer(data());
-  if (m_fini_arguments) {
-    m_fini_arguments(m_argument_store);
+  if (m_flags & k_arguments) {
+    m_storage_dispatch(storage_mode::k_fini_arguments, data(), m_argument_store);
+    deallocate_arguments(m_argument_store);
   }
   m_flags &= ~k_enabled;
   m_flags |= k_initialized;
+}
+
+rx_byte* global_node::allocate_arguments(rx_size _size) {
+  return reinterpret_cast<rx_byte*>(malloc(_size));
+}
+
+void global_node::deallocate_arguments(rx_byte* _arguments) {
+  free(_arguments);
 }
 
 // global_group
@@ -108,11 +122,23 @@ void globals::link() {
   // by |global_node::m_grouped| when the given global shares the same group
   // name as the group.
   concurrency::scope_lock lock{g_lock};
-  for (auto group = s_group_list.enumerate_head(&global_group::m_link); group; group.next()) {
-    for (auto node = s_node_list.enumerate_head(&global_node::m_ungrouped); node; node.next()) {
+  for (auto node = s_node_list.enumerate_head(&global_node::m_ungrouped); node; node.next()) {
+    bool unlinked = true;
+    for (auto group = s_group_list.enumerate_head(&global_group::m_link); group; group.next()) {
       if (!strcmp(node->m_group, group->name())) {
         group->m_list.push(&node->m_grouped);
+        unlinked = false;
+        break;
       }
+    }
+
+    if (unlinked) {
+      // NOTE(dweiler): If you've hit this code-enforced crash it means there
+      // exists an rx::global<T> that is associated with a group by name which
+      // doesn't exist. This can be caused by misnaming the group in the
+      // global's constructor, or because the rx::global_group with that name
+      // doesn't exist in any translation unit.
+      *reinterpret_cast<volatile int*>(0) = 0;
     }
   }
 }
@@ -139,6 +165,6 @@ void globals::link(global_group* _group) {
   s_group_list.push(&_group->m_link);
 }
 
-static RX_GLOBAL_GROUP("system", g_group_system);
+static global_group g_group_system{"system"};
 
 } // namespace rx

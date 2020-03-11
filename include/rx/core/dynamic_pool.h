@@ -2,6 +2,7 @@
 #define RX_CORE_DYNAMIC_POOL_H
 #include "rx/core/static_pool.h"
 #include "rx/core/vector.h"
+#include "rx/core/ptr.h"
 
 #include "rx/core/hints/empty_bases.h"
 
@@ -13,7 +14,6 @@ struct RX_HINT_EMPTY_BASES dynamic_pool
   constexpr dynamic_pool(memory::allocator* _allocator, rx_size _object_size, rx_size _objects_per_pool);
   constexpr dynamic_pool(rx_size _object_size, rx_size _per_pool);
   dynamic_pool(dynamic_pool&& pool_);
-  ~dynamic_pool();
 
   dynamic_pool& operator=(dynamic_pool&& pool_);
   rx_byte* operator[](rx_size _index) const;
@@ -36,13 +36,13 @@ struct RX_HINT_EMPTY_BASES dynamic_pool
   rx_size index_of(const rx_byte* _data) const;
 
 private:
-  void add_pool();
+  [[nodiscard]] bool add_pool();
   rx_size pool_index_of(const rx_byte* _data) const;
 
   memory::allocator* m_allocator;
   rx_size m_object_size;
   rx_size m_objects_per_pool;
-  vector<static_pool*> m_pools;
+  vector<ptr<static_pool>> m_pools;
 };
 
 inline constexpr dynamic_pool::dynamic_pool(memory::allocator* _allocator, rx_size _object_size, rx_size _objects_per_pool)
@@ -66,15 +66,17 @@ template<typename T, typename... Ts>
 inline T* dynamic_pool::create(Ts&&... _arguments) {
   const rx_size pools = m_pools.size();
   for (rx_size i = 0; i < pools; i++) {
-    static_pool* pool = m_pools[i];
-    if (T* result = pool->create<T>(utility::forward<Ts>(_arguments)...)) {
-      return result;
+    auto& pool = m_pools[i];
+    if (pool->can_allocate()) {
+      return pool->create<T>(utility::forward<Ts>(_arguments)...);
     }
   }
 
-  add_pool();
+  if (add_pool()) {
+    return create<T>(utility::forward<Ts>(_arguments)...);
+  }
 
-  return create<T>(utility::forward<Ts>(_arguments)...);
+  return nullptr;
 }
 
 template<typename T>
@@ -86,14 +88,13 @@ void dynamic_pool::destroy(T* _data) {
 
   // Fetch the static pool with the given index, then destroy the data on
   // that pool, as it own's it.
-  static_pool* pool = m_pools[index];
+  auto& pool = m_pools[index];
   pool->destroy<T>(_data);
 
   // When the pool is empty and it's the last pool in the list, to reduce
   // memory, remove it from |m_pools|.
   if (pool->is_empty() && pool == m_pools.last()) {
-    m_allocator->destroy<static_pool>(pool);
-    m_pools.resize(m_pools.size() - 1);
+    m_pools.pop_back();
   }
 }
 

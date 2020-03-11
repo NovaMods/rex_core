@@ -71,8 +71,8 @@ private:
   rx_size& element_hash(rx_size index);
   rx_size element_hash(rx_size index) const;
 
-  void allocate();
-  void grow();
+  [[nodiscard]] bool allocate();
+  [[nodiscard]] bool grow();
 
   // move and non-move construction functions
   void construct(rx_size _index, rx_size _hash, K&& key_);
@@ -103,7 +103,7 @@ template<typename K>
 inline set<K>::set(memory::allocator* _allocator)
 {
   initialize(_allocator, k_initial_size);
-  allocate();
+  RX_ASSERT(allocate(), "out of memory");
 }
 
 template<typename K>
@@ -116,7 +116,7 @@ inline set<K>::set(set&& set_)
   , m_resize_threshold{set_.m_resize_threshold}
   , m_mask{set_.m_mask}
 {
-  set_.initialize(&memory::g_system_allocator, 0);
+  set_.initialize(m_allocator, 0);
 }
 
 template<typename K>
@@ -194,7 +194,7 @@ inline set<K>& set<K>::operator=(set<K>&& set_) {
   m_resize_threshold = set_.m_resize_threshold;
   m_mask = set_.m_mask;
 
-  set_.initialize(&memory::g_system_allocator, 0);
+  set_.initialize(m_allocator, 0);
 
   return *this;
 }
@@ -205,7 +205,7 @@ inline set<K>& set<K>::operator=(const set<K>& _set) {
 
   clear_and_deallocate();
   initialize(_set.m_allocator, _set.m_capacity);
-  allocate();
+  RX_ASSERT(allocate(), "out of memory");
 
   for (rx_size i{0}; i < _set.m_capacity; i++) {
     const auto hash = _set.element_hash(i);
@@ -219,6 +219,8 @@ inline set<K>& set<K>::operator=(const set<K>& _set) {
 
 template<typename K>
 inline constexpr void set<K>::initialize(memory::allocator* _allocator, rx_size _capacity) {
+  RX_ASSERT(_allocator, "null allocator");
+
   m_allocator = _allocator;
   m_keys = nullptr;
   m_hashes = nullptr;
@@ -231,7 +233,7 @@ inline constexpr void set<K>::initialize(memory::allocator* _allocator, rx_size 
 template<typename K>
 inline void set<K>::insert(K&& key_) {
   if (++m_size >= m_resize_threshold) {
-    grow();
+    RX_ASSERT(grow(), "out of memory");
   }
   inserter(hash_key(key_), utility::forward<K>(key_));
 }
@@ -239,7 +241,7 @@ inline void set<K>::insert(K&& key_) {
 template<typename K>
 inline void set<K>::insert(const K& _key) {
   if (++m_size >= m_resize_threshold) {
-    grow();
+    RX_ASSERT(grow(), "out of memory");
   }
   inserter(hash_key(_key), _key);
 }
@@ -325,9 +327,13 @@ inline rx_size set<K>::element_hash(rx_size _index) const {
 }
 
 template<typename K>
-inline void set<K>::allocate() {
+inline bool set<K>::allocate() {
   m_keys = reinterpret_cast<K*>(m_allocator->allocate(sizeof(K) * m_capacity));
   m_hashes = reinterpret_cast<rx_size*>(m_allocator->allocate(sizeof(rx_size) * m_capacity));
+
+  if (!m_keys || !m_hashes) {
+    return false;
+  }
 
   for (rx_size i{0}; i < m_capacity; i++) {
     element_hash(i) = 0;
@@ -335,17 +341,23 @@ inline void set<K>::allocate() {
 
   m_resize_threshold = (m_capacity * k_load_factor) / 100;
   m_mask = m_capacity - 1;
+
+  return true;
 }
 
 template<typename K>
-inline void set<K>::grow() {
+inline bool set<K>::grow() {
   const auto old_capacity{m_capacity};
 
-  auto keys_data{m_keys};
-  auto hashes_data{m_hashes};
+  auto keys_data = m_keys;
+  auto hashes_data = m_hashes;
+
+  RX_ASSERT(keys_data && hashes_data, "unallocated");
 
   m_capacity *= 2;
-  allocate();
+  if (!allocate()) {
+    return false;
+  }
 
   for (rx_size i{0}; i < old_capacity; i++) {
     const auto hash{hashes_data[i]};
@@ -359,6 +371,8 @@ inline void set<K>::grow() {
 
   m_allocator->deallocate(reinterpret_cast<rx_byte*>(keys_data));
   m_allocator->deallocate(reinterpret_cast<rx_byte*>(hashes_data));
+
+  return true;
 }
 
 template<typename K>
