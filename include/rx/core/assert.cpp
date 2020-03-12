@@ -5,6 +5,10 @@
 #include "rx/core/log.h" // RX_LOG, rx::log
 #include "rx/core/abort.h" // rx::abort
 
+#if defined(RX_PLATFORM_WINDOWS)
+#include <debugapi.h>   // DebugBreak
+#endif
+
 RX_LOG("assert", logger);
 
 namespace rx {
@@ -31,7 +35,11 @@ void assert_fail(const char* _expression, const char* _file,
   logger(log::level::k_error, "Assertion failed: %s (%s:%d %s) \"%s\"",
     _expression, _file, _line, _function, utility::move(contents));
 
-  abort(contents.data());
+#if defined(RX_PLATFORM_WINDOWS)
+  DebugBreak();
+#elif defined(RX_PLATFORM_LINUX)
+  raise(SIGINT);
+#endif
 }
 
 } // namespace rx
