@@ -20,7 +20,7 @@ struct event<R(Ts...)> {
     : concepts::no_copy
   {
     constexpr handle(event* _event, rx_size _index);
-    handle(handle&& _existing);
+    constexpr handle(handle&& _existing);
     ~handle();
   private:
     event* m_event;
@@ -52,7 +52,7 @@ inline constexpr event<R(Ts...)>::handle::handle(event<R(Ts...)>* _event, rx_siz
 }
 
 template<typename R, typename... Ts>
-inline event<R(Ts...)>::handle::handle(handle&& handle_)
+inline constexpr event<R(Ts...)>::handle::handle(handle&& handle_)
   : m_event{handle_.m_event}
   , m_index{handle_.m_index}
 {
