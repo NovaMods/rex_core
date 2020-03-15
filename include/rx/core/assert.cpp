@@ -6,7 +6,7 @@
 #include "rx/core/abort.h" // rx::abort
 
 #if defined(RX_PLATFORM_WINDOWS)
-#include <debugapi.h>   // DebugBreak
+#include <Windows.h>   // DebugBreak
 #endif
 
 RX_LOG("assert", logger);
