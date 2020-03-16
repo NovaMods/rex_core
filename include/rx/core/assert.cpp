@@ -18,19 +18,19 @@ RX_LOG("assert", logger);
 namespace rx {
 
 [[noreturn]]
-void assert_fail(const char* _expression, const char* _file,
-  const char* _function, int _line, const char* _message, ...)
+void assert_fail(const char* _expression,
+  const source_location& _source_location, const char* _message, ...)
 {
   va_list va;
   va_start(va, _message);
 
-  // calculate length to format
+  // Determine how much memory is needed to format the assertion message.
   va_list ap;
   va_copy(ap, va);
-  const int length{vsnprintf(nullptr, 0, _message, ap)};
+  const int length = vsnprintf(nullptr, 0, _message, ap);
   va_end(ap);
 
-  // format into string
+  // Construct assertion message.
   string contents;
   contents.resize(length);
   vsnprintf(contents.data(), contents.size() + 1, _message, va);
