@@ -11,5 +11,4 @@ include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
 
 source_group(TREE "${CMAKE_CURRENT_LIST_DIR}/include" FILES ${RX_SOURCES})
 
-target_compile_definitions(rex INTERFACE $<$<CONFIG:Debug>:RX_DEBUG>)
-target_compile_definitions(rex INTERFACE RX_BREAK_ON_ASSERT)
+target_compile_definitions(rex PUBLIC $<$<CONFIG:Debug>:RX_DEBUG>)
