@@ -13,6 +13,7 @@
 
 #if defined(RX_PLATFORM_POSIX)
 #include <pthread.h> // pthread_t
+#include <signal.h> // sigset_t, setfillset
 #elif defined(RX_PLATFORM_WINDOWS)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -27,14 +28,6 @@ namespace rx::concurrency {
 
 static atomic<int> g_thread_id;
 
-thread::thread(memory::allocator* _allocator, const char* _name, function<void(int)>&& function_)
-  : m_allocator{_allocator}
-{
-  RX_ASSERT(m_allocator, "null allocator");
-
-  m_state = make_ptr<state>(m_allocator, _name, utility::move(function_));
-}
-
 thread::~thread() {
   if (m_state) {
     join();
@@ -48,18 +41,25 @@ void thread::join() {
 
 // state
 void* thread::state::wrap(void* _data) {
-  const int thread_id = g_thread_id++;
+#if defined(RX_PLATFORM_POSIX)
+  // Don't permit any signal delivery to threads.
+  sigset_t mask;
+  sigfillset(&mask);
+  RX_ASSERT(pthread_sigmask(SIG_BLOCK, &mask, nullptr) == 0,
+    "failed to block signals");
+#endif
+
+  // Record the thread name into the global profiler.
   auto self = reinterpret_cast<state*>(_data);
   profiler::instance().set_thread_name(self->m_name);
-  self->m_function(utility::move(thread_id));
+
+  // Dispatch the actual thread function.
+  self->m_function(g_thread_id++);
+
   return nullptr;
 }
 
-thread::state::state(const char* _name, function<void(int)>&& function_)
-  : m_function{utility::move(function_)}
-  , m_joined{false}
-  , m_name{_name}
-{
+void thread::state::spawn() {
 #if defined(RX_PLATFORM_POSIX)
   // Spawn the thread.
   auto handle = reinterpret_cast<pthread_t*>(m_thread);
@@ -67,8 +67,8 @@ thread::state::state(const char* _name, function<void(int)>&& function_)
     RX_ASSERT(false, "thread creation failed");
   }
 
-  // Set the thread's name to |_name|.
-  pthread_setname_np(*handle, _name);
+  // Set the thread's name.
+  pthread_setname_np(*handle, m_name);
 
 #elif defined(RX_PLATFORM_WINDOWS)
   // |_beginthreadex| is a bit non-standard in that it expects the __stdcall
