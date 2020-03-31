@@ -9,11 +9,11 @@ struct string;
 
 struct string_table {
   constexpr string_table();
-  constexpr string_table(memory::allocator* _allocator);
+  constexpr string_table(memory::allocator& _allocator);
 
   // Construct a string table from raw string data.
   string_table(vector<char>&& data_);
-  string_table(memory::allocator* _allocator, const char* _data, rx_size _size);
+  string_table(memory::allocator& _allocator, const char* _data, rx_size _size);
 
   string_table(string_table&& string_table_);
   string_table(const string_table& _string_table);
@@ -32,7 +32,7 @@ struct string_table {
 
   void clear();
 
-  memory::allocator* allocator() const;
+  constexpr memory::allocator& allocator() const;
 
 private:
   optional<rx_size> find(const char* _string) const;
@@ -42,11 +42,11 @@ private:
 };
 
 inline constexpr string_table::string_table()
-  : string_table{&memory::g_system_allocator}
+  : string_table{memory::system_allocator::instance()}
 {
 }
 
-inline constexpr string_table::string_table(memory::allocator* _allocator)
+inline constexpr string_table::string_table(memory::allocator& _allocator)
   : m_data{_allocator}
 {
 }
@@ -92,7 +92,7 @@ inline void string_table::clear() {
   m_data.clear();
 }
 
-inline memory::allocator* string_table::allocator() const {
+RX_HINT_FORCE_INLINE constexpr memory::allocator& string_table::allocator() const {
   return m_data.allocator();
 }
 

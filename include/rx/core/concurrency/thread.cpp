@@ -5,21 +5,14 @@
 #include "rx/core/string.h"
 #include "rx/core/profiler.h"
 
-#if defined(RX_PLATFORM_WINDOWS)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h> // HANDLE
-#include <process.h> // _beginthreadex,
-#endif // defined(RX_PLATFORM_WINDOWS)
-
 #if defined(RX_PLATFORM_POSIX)
 #include <pthread.h> // pthread_t
 #include <signal.h> // sigset_t, setfillset
 #elif defined(RX_PLATFORM_WINDOWS)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-#define VC_EXTRALEAN
 #include <windows.h> // HANDLE
-#undef interface
+#include <process.h> // _beginthreadex
 #else
 #error "missing thread implementation"
 #endif
@@ -91,7 +84,7 @@ void thread::state::spawn() {
 
   // Convert thread name to UTF-16 and set the thread's name with the new
   // |SetThreadDescription| API.
-  const wide_string converted_name = string(_name).to_utf16();
+  const wide_string converted_name = string(m_name).to_utf16();
   SetThreadDescription(thread_handle, reinterpret_cast<PCWSTR>(converted_name.data()));
 
   // Store the result of |_beginthreadex| into the HANDLE storage given by

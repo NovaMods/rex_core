@@ -20,6 +20,7 @@ struct allocator
   static constexpr const rx_size k_alignment = 16;
 
   constexpr allocator() = default;
+
   ~allocator() = default;
 
   // allocate memory of size |_size|
@@ -27,10 +28,10 @@ struct allocator
 
   // reallocate existing memory |_data| to size |_size|, should be an alias for
   // allocate(_size) when |_data| is nullptr
-  virtual rx_byte* reallocate(rx_byte* _data, rx_size _size) = 0;
+  virtual rx_byte* reallocate(void* _data, rx_size _size) = 0;
 
   // reallocate existing memory |_data|
-  virtual void deallocate(rx_byte* data) = 0;
+  virtual void deallocate(void* data) = 0;
 
   // create an object of type |T| with constructor arguments |Ts| on this allocator
   template<typename T, typename... Ts>
@@ -59,7 +60,7 @@ template<typename T>
 inline void allocator::destroy(void* _data) {
   if (_data) {
     utility::destruct<T>(_data);
-    deallocate(reinterpret_cast<rx_byte*>(_data));
+    deallocate(_data);
   }
 }
 

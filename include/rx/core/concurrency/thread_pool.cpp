@@ -10,7 +10,7 @@ namespace rx::concurrency {
 
 RX_LOG("thread_pool", logger);
 
-global<thread_pool> thread_pool::s_thread_pool{"system", "thread_pool", 4_z, 4096_z};
+global<thread_pool> thread_pool::s_instance{"system", "thread_pool", 4_z, 4096_z};
 
 struct RX_HINT_EMPTY_BASES work
   : concepts::no_copy
@@ -25,10 +25,10 @@ struct RX_HINT_EMPTY_BASES work
   function<void(int)> callback;
 };
 
-thread_pool::thread_pool(memory::allocator* _allocator, rx_size _threads, rx_size _static_pool_size)
+thread_pool::thread_pool(memory::allocator& _allocator, rx_size _threads, rx_size _static_pool_size)
   : m_allocator{_allocator}
-  , m_threads{m_allocator}
-  , m_job_memory{m_allocator, sizeof(work), _static_pool_size}
+  , m_threads{allocator()}
+  , m_job_memory{allocator(), sizeof(work), _static_pool_size}
   , m_stop{false}
 {
   time::stopwatch timer;

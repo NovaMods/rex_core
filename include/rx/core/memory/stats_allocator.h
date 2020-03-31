@@ -16,12 +16,12 @@ namespace rx::memory {
 struct stats_allocator
   final : allocator
 {
-  stats_allocator() = delete;
-  stats_allocator(allocator* _allocator);
+  constexpr stats_allocator() = delete;
+  constexpr stats_allocator(allocator& _allocator);
 
   virtual rx_byte* allocate(rx_size _size);
-  virtual rx_byte* reallocate(rx_byte* _data, rx_size _size);
-  virtual void deallocate(rx_byte* _data);
+  virtual rx_byte* reallocate(void* _data, rx_size _size);
+  virtual void deallocate(void* _data);
 
   struct statistics {
     rx_size allocations;           // Number of calls to allocate
@@ -40,15 +40,20 @@ struct stats_allocator
     rx_u64 used_actual_bytes;
   };
 
-  statistics stats();
+  statistics stats() const;
 
 private:
-  allocator* m_allocator;
-  concurrency::spin_lock m_lock;
+  allocator& m_allocator;
+  mutable concurrency::spin_lock m_lock;
   statistics m_statistics; // protected by |m_lock|
 };
+
+inline constexpr stats_allocator::stats_allocator(allocator& _allocator)
+  : m_allocator{_allocator}
+  , m_statistics{}
+{
+}
 
 } // namespace rx::memory
 
 #endif // RX_CORE_MEMORY_STATS_ALLOCATOR_H
-

@@ -7,9 +7,7 @@
 #elif defined(RX_PLATFORM_WINDOWS)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-#define VC_EXTRALEAN
 #include <windows.h> // WIN32_FIND_DATAW, HANDLE, LPCWSTR, INVALID_HANDLE_VALUE, FILE_ATTRIBUTE_DIRECTORY, FindFirstFileW, FindNextFileW, FindClose
-#undef interface
 #else
 #error "missing directory implementation"
 #endif
@@ -26,7 +24,7 @@ struct find_context {
 };
 #endif
 
-directory::directory(memory::allocator* _allocator, string&& path_)
+directory::directory(memory::allocator& _allocator, string&& path_)
   : m_allocator{_allocator}
   , m_path{utility::move(path_)}
 {
@@ -36,13 +34,13 @@ directory::directory(memory::allocator* _allocator, string&& path_)
   // The only thing we can cache between reuses of a directory object is the
   // path conversion and the initial find handle on Windows. Subsequent reuses
   // will need to reopen the directory.
-  find_context* context = m_allocator->create<find_context>();
+  find_context* context = allocator().create<find_context>();
   RX_ASSERT(context, "out of memory");
 
   // Convert |m_path| to UTF-16 for Windows.
   const wide_string path_utf16 = m_path.to_utf16();
   static constexpr const wchar_t k_path_extra[] = L"\\*";
-  vector<rx_u16> path_data{m_allocator, path_utf16.size() + sizeof k_path_extra,
+  vector<rx_u16> path_data{allocator(), path_utf16.size() + sizeof k_path_extra,
     utility::uninitialized{}};
 
   memcpy(path_data.data(), path_utf16.data(), path_utf16.size() * 2);
@@ -58,7 +56,7 @@ directory::directory(memory::allocator* _allocator, string&& path_)
     context->path_data = utility::move(path_data);
     m_impl = reinterpret_cast<void*>(context);
   } else {
-    m_allocator->destroy<find_context>(context);
+    allocator().destroy<find_context>(context);
     m_impl = nullptr;
   }
 #endif
@@ -71,7 +69,7 @@ directory::~directory() {
   }
 #elif defined(RX_PLATFORM_WINDOWS)
   if (m_impl) {
-    m_allocator->destroy<find_context>(m_impl);
+    allocator().destroy<find_context>(m_impl);
   }
 #endif
 }
@@ -100,10 +98,10 @@ void directory::each(function<void(item&&)>&& _function) {
       // Only accept regular files and directories, symbolic links are not allowed.
       switch (next->d_type) {
       case DT_DIR:
-        _function({{m_allocator, next->d_name}, item::type::k_directory});
+        _function({{allocator(), next->d_name}, item::type::k_directory});
         break;
       case DT_REG:
-        _function({{m_allocator, next->d_name}, item::type::k_file});
+        _function({{allocator(), next->d_name}, item::type::k_file});
         break;
       }
 
@@ -127,7 +125,7 @@ void directory::each(function<void(item&&)>&& _function) {
       context->handle = handle;
     } else {
       // Destroy the context and clear |m_impl| out so operator bool reflects this.
-      m_allocator->destroy<find_context>(context);
+      allocator().destroy<find_context>(context);
       m_impl = nullptr;
       return;
     }

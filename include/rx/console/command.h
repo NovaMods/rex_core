@@ -54,7 +54,7 @@ struct RX_HINT_EMPTY_BASES command
 
   using delegate = function<bool(const vector<argument>& _arguments)>;
 
-  command(memory::allocator* _allocator, const string& _name,
+  command(memory::allocator& _allocator, const string& _name,
     const char* _signature, delegate&& _function);
   command(const string& _name, const char* _signature, delegate&& _function);
   command(command&& command_);
@@ -68,10 +68,12 @@ struct RX_HINT_EMPTY_BASES command
 
   const string& name() const &;
 
+  constexpr memory::allocator& allocator() const;
+
 private:
   bool execute();
 
-  memory::allocator* m_allocator;
+  ref<memory::allocator> m_allocator;
   delegate m_delegate;
   vector<argument> m_arguments;
   string m_declaration;
@@ -141,7 +143,7 @@ inline command::argument::argument(const math::vec2i& _value)
 }
 
 inline command::command(const string& _name, const char* _signature, delegate&& _function)
-  : command{&memory::g_system_allocator, _name, _signature, utility::move(_function)}
+  : command{memory::system_allocator::instance(), _name, _signature, utility::move(_function)}
 {
 }
 
@@ -179,6 +181,10 @@ inline bool command::execute_arguments(Ts&&... _arguments) {
 
 inline const string& command::name() const & {
   return m_name;
+}
+
+RX_HINT_FORCE_INLINE constexpr memory::allocator& command::allocator() const {
+  return m_allocator;
 }
 
 } // namespace rx::console
