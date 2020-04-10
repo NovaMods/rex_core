@@ -1,5 +1,6 @@
 #ifndef RX_CORE_VECTOR_H
 #define RX_CORE_VECTOR_H
+#include "rx/core/hints/force_inline.h"
 #include "rx/core/array.h"
 #include "rx/core/ref.h"
 

@@ -2,6 +2,8 @@
 #define RX_CONSOLE_INTERFACE_H
 #include "rx/console/variable.h"
 #include "rx/console/command.h"
+#include "rx/core/function.h"
+#include "rx/core/vector.h"
 
 namespace rx::console {
 

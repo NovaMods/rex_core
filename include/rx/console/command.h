@@ -2,10 +2,13 @@
 #define RX_CONSOLE_COMMAND_H
 #include "rx/console/variable.h"
 #include "rx/console/parser.h"
-
+#include "rx/core/concepts/no_copy.h"
+#include "rx/core/function.h"
 #include "rx/core/hints/empty_bases.h"
 
 #include "rx/core/utility/exchange.h"
+#include "rx/core/utility/move.h"
+#include "rx/core/vector.h"
 
 namespace rx::console {
 

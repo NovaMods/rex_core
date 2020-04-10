@@ -3,6 +3,7 @@
 #include "rx/core/event.h"
 #include "rx/core/string.h"
 #include "rx/core/source_location.h"
+#include "rx/core/utility/move.h"
 
 namespace rx {
 
