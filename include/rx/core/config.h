@@ -26,7 +26,9 @@
 #define __has_include(...) 0
 #endif
 
+#if !defined(__has_keyword)
 #define __has_keyword(_x) !(__is_identifier(_x))
+#endif
 
 // determine compiler
 #if defined(__clang__)

@@ -4,7 +4,6 @@
 #include "rx/core/utility/destruct.h" // utility::destruct
 
 #include "rx/core/concepts/interface.h" // concepts::interface
-#include "rx/core/types.h"
 
 namespace rx::memory {
 

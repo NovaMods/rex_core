@@ -1,15 +1,12 @@
 #ifndef RX_CONSOLE_VARIABLE_H
 #define RX_CONSOLE_VARIABLE_H
-
-#include <float.h>
 #include <limits.h> // INT_{MIN, MAX}
 
 #include "rx/core/assert.h" // RX_ASSERT
 #include "rx/core/string.h" // string
 #include "rx/core/global.h" // global
 #include "rx/core/event.h" // event
-#include "rx/core/types.h"
-#include "rx/core/utility/move.h"
+
 #include "rx/math/vec2.h" // vec2{f,i}
 #include "rx/math/vec3.h" // vec3{f,i}
 #include "rx/math/vec4.h" // vec4{f,i}

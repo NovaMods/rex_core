@@ -1,13 +1,11 @@
 #ifndef RX_CORE_PTR_H
 #define RX_CORE_PTR_H
-#include "hints/force_inline.h"
-#include "rx/core/memory/system_allocator.h"
+#include "rx/core/memory/allocator.h"
 #include "rx/core/hints/empty_bases.h"
 #include "rx/core/utility/exchange.h"
 #include "rx/core/assert.h"
 #include "rx/core/hash.h"
 #include "rx/core/ref.h"
-#include "rx/core/concepts/no_copy.h"
 
 namespace rx {
 
